@@ -1,0 +1,1107 @@
+```{r}
+# libraries et fonctions à charger 
+library(DiceDesign)
+library(DiceKriging)
+library(pracma)
+library(geometry)
+library(sfsmisc)
+library(randtoolbox)
+library(DiceOptim)
+library(KrigInv)
+source('functions/Minimax.R')
+```
+
+# Partie 1
+
+## Exercice 1
+
+#### Question 1
+
+```{r}
+X_lhs <- lhsDesign(10, 2)$design
+
+# Plot du plan LHS en 2D avec un aspect carré
+plot(X_lhs, col = "blue", pch = 3, main = "Plan LHS en 2D (10 points)", xlim = c(0, 1), ylim = c(0, 1))
+abline(h = seq(0, 1, by = 0.1), col = "gray", lty = "dotted")
+abline(v = seq(0, 1, by = 0.1), col = "gray", lty = "dotted")
+```
+
+On ne décrit pas tout l'espace et certains espaces ont beaucoup de points (redondance) comparé à d'autres : le plan n'est pas homogène.
+
+#### Question 2
+
+```{r}
+# Générer un plan LHS en deux dimensions avec 10 points
+X_lhs <- lhsDesign(10, 2)$design
+
+# Optimiser le plan LHS pour le critère de maximin
+X_maximin <- maximinSA_LHS(X_lhs)$design
+
+# Visualiser le plan LHS optimisé
+plot(X_maximin, col = "green", pch = 19, main = "Plan LHS optimisé pour maximin en 2D (10 points)")
+```
+
+La distribution spatiale est meilleure.
+
+#### Question 3
+
+```{r}
+# Générer un plan LHS en deux dimensions avec 10 points
+X_lhs <- lhsDesign(10, 2)$design
+
+# Optimiser le plan LHS pour le critère de discrépance centrée
+X_discrepancy <- discrepSA_LHS(X_lhs)$design
+
+# Visualiser le plan LHS optimisé
+plot(X_discrepancy, col = "red", pch = 19, main = "Plan LHS optimisé pour discrépance centrée en 2D (10 points)")
+```
+
+Le plan est homogène et sans redondance comme pour le critère maximin.
+
+#### Question 4
+
+```{r}
+# Calculer les critères pour chaque plan
+critere_maximin <- mindist(X_lhs)
+critere_minimax <- Minimax(X_lhs)
+critere_discrepancy <- discrepancyCriteria(X_lhs)$DisC2
+
+critere_maximin_maximin <- mindist(X_maximin)
+critere_minimax_maximin <- Minimax(X_maximin)
+critere_discrepancy_maximin <- discrepancyCriteria(X_maximin)$DisC2
+
+critere_maximin_discrepancy <- mindist(X_discrepancy)
+critere_minimax_discrepancy <- Minimax(X_discrepancy)
+critere_discrepancy_discrepancy <- discrepancyCriteria(X_discrepancy)$DisC2
+
+# Afficher les résultats
+print("Critères pour le plan LHS initial:")
+print(paste("Maximin:", critere_maximin))
+print(paste("Minimax:", critere_minimax))
+print(paste("Discrepancy:", critere_discrepancy))
+
+print("Critères pour le plan LHS optimisé pour maximin:")
+print(paste("Maximin:", critere_maximin_maximin))
+print(paste("Minimax:", critere_minimax_maximin))
+print(paste("Discrepancy:", critere_discrepancy_maximin))
+
+print("Critères pour le plan LHS optimisé pour discrepancy:")
+print(paste("Maximin:", critere_maximin_discrepancy))
+print(paste("Minimax:", critere_minimax_discrepancy))
+print(paste("Discrepancy:", critere_discrepancy_discrepancy))
+```
+
+Le meilleur plan est le plan LHS optimisé pour la discrépance centrée car il a le minimax minimal et la discrépance la plus faible (les points sont donc répartis de manière très uniforme)
+
+### question 5
+
+```{r}
+# Set the number of points and dimensions
+N <- 50
+d <- 5
+
+# Generate a Latin Hypercube Sampling (LHS) design
+X <- lhsDesign(N, d)
+min_dist <- mindist(X$design)
+print(min_dist)
+
+# Visualize the LHS design
+plot(X$design, col = "blue", pch = 16, main = "Latin Hypercube Sampling Design", xlab = "X1", ylab = "X2", xlim = c(0, 1), ylim = c(0, 1))
+
+# Add grid lines with spacing of 1/N
+abline(v = seq(0, 1, by = 1/N), col = "gray", lty = "dotted")
+abline(h = seq(0, 1, by = 1/N), col = "gray", lty = "dotted")
+
+```
+
+```{r}
+# Set the number of points and dimensions
+N <- 50
+d <- 5
+
+# Generate an initial LHS design
+X_init <- lhsDesign(N, d)
+min_dist <- mindist(X_init$design)
+print(min_dist)
+
+# Optimize the initial LHS design for the maximin criterion
+X_optimized <- maximinSA_LHS(X_init$design, T0 = 10, it = 10000)$design
+min_dist <- mindist(X_optimized)
+print(min_dist)
+
+# Visualize the optimized LHS design
+plot(X_optimized, col = "red", pch = 16, main = "Optimized Latin Hypercube Sampling Design (Maximin Criterion)", xlab = "X1", ylab = "X2", xlim = c(0, 1), ylim = c(0, 1))
+
+# Add grid lines with spacing of 1/N
+abline(v = seq(0, 1, by = 1/N), col = "gray", lty = "dotted")
+abline(h = seq(0, 1, by = 1/N), col = "gray", lty = "dotted")
+
+
+```
+
+```{r}
+N <- 50
+d <- 5
+
+
+# Optimize the initial LHS design for the centered discrepancy criterion
+X_optimized_discrep <- discrepSA_LHS(X_init$design)$design
+
+# Visualize the optimized LHS design
+plot(X_optimized_discrep, col = "green", pch = 16, main = "Optimized Latin Hypercube Sampling Design (Centered Discrepancy Criterion)", xlab = "X1", ylab = "X2")
+```
+
+```{r}
+N <- 50
+d <- 2
+
+
+# Optimize the initial LHS design for the centered discrepancy criterion
+X_optimized_discrep <- discrepSA_LHS(X_init$design)$design
+
+# Visualize the optimized LHS design
+plot(X_optimized_discrep, col = "green", pch = 16, main = "Optimized Latin Hypercube Sampling Design (Centered Discrepancy Criterion)", xlab = "X1", ylab = "X2")
+```
+
+```{r}
+# Chargement du package lhs
+library(lhs)
+
+# Calcul des critères pour X_init
+maximin_X_init <- mindist(X_init$design)
+minimax_X_init <- Minimax(X_init$design)
+discrepancy_X_init <- discrepancyCriteria(X_init$design)$DisC2
+
+# Calcul des critères pour X_optimized_discrep
+maximin_X_optimized_discrep <- mindist(X_optimized_discrep)
+minimax_X_optimized_discrep <- Minimax(X_optimized_discrep)
+discrepancy_X_optimized_discrep <- discrepancyCriteria(X_optimized_discrep)$DisC2
+
+# Calcul des critères pour X_optimized
+maximin_X_optimized <- mindist(X_optimized)
+minimax_X_optimized <- Minimax(X_optimized)
+discrepancy_X_optimized <- discrepancyCriteria(X_optimized)$DisC2
+
+# Affichage des résultats
+cat("Critères pour X_init:\n")
+cat("Maximin:", maximin_X_init, "\n")
+cat("Minimax:", minimax_X_init, "\n")
+cat("Discrepancy centrée:", discrepancy_X_init, "\n\n")
+
+cat("Critères pour X_optimized_discrep:\n")
+cat("Maximin:", maximin_X_optimized_discrep, "\n")
+cat("Minimax:", minimax_X_optimized_discrep, "\n")
+cat("Discrepancy centrée:", discrepancy_X_optimized_discrep, "\n\n")
+
+cat("Critères pour X_optimized:\n")
+cat("Maximin:", maximin_X_optimized, "\n")
+cat("Minimax:", minimax_X_optimized, "\n")
+cat("Discrepancy centrée:", discrepancy_X_optimized, "\n")
+```
+
+## Exercice 2
+
+### QUestion 1
+
+```{r}
+# Générer une suite de Halton à 50 points en dimension 5
+halton_points <- QUnif(n = 50, p = 5)
+
+# Visualiser le plan
+pairs(halton_points, main = "Halton Sequence in Dimension 5")
+```
+
+### Question2
+
+```{r}
+# Définir le nombre total de points à générer
+n_points <- 50
+# Nombre de dimensions
+p <- 5
+
+# Définir les bases comme les premiers nombres premiers
+bases <- c(3,13,7,19,5) 
+
+# Initialiser une matrice pour stocker les résultats
+halton_matrix <- matrix(NA, nrow = n_points, ncol = p)
+
+# Générer une suite de Halton pour chaque dimension avec une base différente
+for (i in 1:p) {
+  halton_matrix[, i] <- sHalton(n.max = n_points, base = bases[i])
+}
+
+# Afficher la matrice avec la fonction pairs
+pairs(halton_matrix, main = "Halton Sequence with Different Prime Bases in Dimensions")
+```
+
+On remarque que les chiffres premiers qui servent à créer une suite de halton doivent être différents pour chaque dimension. Autrement on obtient des points tous alignés. Plus les nombres pris sont grands, plus la redondance du plan d'experience est grande. On en déduit qaue cette routine ne marche bien que pour les petites dimensions.
+
+### question 3
+
+```{r}
+# Générer une suite de Halton à 50 points en dimension 5
+halton_points <- QUnif(n = 100, p = 10)
+
+# Visualiser le plan
+pairs(halton_points, main = "Halton Sequence in Dimension 10")
+```
+
+On remarque que pour certaines combinaisons de dimensions, les points sont très alignés. Cela confirme l'intuition de la question 2.
+
+### Question 4
+
+```{r}
+library(randtoolbox)
+# Générer une suite de Sobol avec 50 points en dimension 5
+sobol_points_5D <- randtoolbox::sobol(n = 50, dim  = 5)
+
+# Générer une suite de Sobol avec 100 points en dimension 10
+sobol_points_10D <- randtoolbox::sobol(n = 100, dim = 10)
+
+# Afficher les deux plans
+pairs(sobol_points_5D, main = "Sobol Sequence with 50 points in Dimension 5")
+pairs(sobol_points_10D, main = "Sobol Sequence with 100 points in Dimension 10")
+```
+
+On ne retrouve pas ces phénomènes d'alignement dans la routine sobol.
+
+### Question 5
+
+```{r}
+
+
+# Générer une suite de Sobol avec 50 points en dimension 5
+sobol_points_5D <- randtoolbox::sobol(n = 50, dim = 5)
+
+# Générer une suite de Sobol avec 100 points en dimension 10
+sobol_points_10D <- randtoolbox::sobol(n = 100, dim = 10)
+
+# Générer une suite de Halton avec 50 points en dimension 5
+halton_points_5D <- QUnif(n = 50,  p= 5)
+
+# Générer une suite de Halton avec 100 points en dimension 10
+halton_points_10D <- QUnif(n = 100, p = 10)
+
+# Calculer le critère maximin
+maximin_sobol_5D <- mindist(sobol_points_5D)
+maximin_sobol_10D <- mindist(sobol_points_10D)
+maximin_halton_5D <- mindist(halton_points_5D)
+maximin_halton_10D <- mindist(halton_points_10D)
+
+# Calculer le critère de discrépance centrée
+disc_sobol_5D <- discrepancyCriteria(sobol_points_5D)$DisC2
+disc_sobol_10D <- discrepancyCriteria(sobol_points_10D)$DisC2
+disc_halton_5D <- discrepancyCriteria(halton_points_5D)$DisC2
+disc_halton_10D <- discrepancyCriteria(halton_points_10D)$DisC2
+
+# Afficher les résultats
+cat("Critère Maximin pour Sobol (50 points, 5 dimensions):", maximin_sobol_5D, "\n")
+cat("Critère Maximin pour Sobol (100 points, 10 dimensions):", maximin_sobol_10D, "\n")
+cat("Critère Maximin pour Halton (50 points, 5 dimensions):", maximin_halton_5D, "\n")
+cat("Critère Maximin pour Halton (100 points, 10 dimensions):", maximin_halton_10D, "\n\n")
+
+cat("Critère de Discrépance Centrée pour Sobol (50 points, 5 dimensions):", disc_sobol_5D, "\n")
+cat("Critère de Discrépance Centrée pour Sobol (100 points, 10 dimensions):", disc_sobol_10D, "\n")
+cat("Critère de Discrépance Centrée pour Halton (50 points, 5 dimensions):", disc_halton_5D, "\n")
+cat("Critère de Discrépance Centrée pour Halton (100 points, 10 dimensions):", disc_halton_10D, "\n")
+
+```
+
+On observe clairement que les suites de sobol sont meilleures que les suites de halton.
+
+## Exercice 3
+
+#### Question 3
+
+```{r}
+######################## exemple en dimnesion 1 ##########################
+N_BA = 5                ## Nombre de points de la base d'apprentissage (BA)
+d = 1                     ## Dimension de l'espace des entrees
+X_init <- lhsDesign(N_BA,d) # plan LHS non optimisé
+PX_BA <- maximinSA_LHS(X_init$design)$design
+N_BT = 101                 ### Nombre de points de la base de test
+PX_BT = seq(0,1,length.out=N_BT)    ### Simulation d'une premiere base de test
+
+coef.cov <- c(theta <- 0.2)
+sigma <- 1
+#trend <- c(intercept <- -1, beta1 <- 2)
+trend <- c(intercept <- 0)
+
+metamodel <- km(formula=~1,design=PX_BA,response=rep(1,N_BA),covtype="matern5_2",
+                 coef.trend=trend, coef.cov=coef.cov, coef.var=sigma^2) 
+
+variance_krigeage <- (predict(metamodel, newdata = data.frame(design = PX_BT), type = "SK")$sd)^2
+
+# Trouver l'indice du point où la variance de krigeage est maximale
+indice_max <- which.max(variance_krigeage)
+
+# Ajouter le point où la variance de krigeage est maximale à l'ensemble d'apprentissage
+PX_BA <- rbind(PX_BA, PX_BT[indice_max])
+
+# Tracer l'évolution de la variance de krigeage en fonction de x
+plot(PX_BT, variance_krigeage, type = "l", col = "blue", xlab = "x", ylab = "Variance de krigeage", main = "Evolution de la variance de krigeage")
+
+# Marquer le point où la variance de krigeage est maximale en rouge
+points(PX_BT[indice_max], variance_krigeage[indice_max], col = "red", pch = 19)
+plot(PX_BA, rep(0, length(PX_BA)), col = "blue", pch = 19, xlim = c(0, 1), ylim = c(-1, 1), xlab = "x", ylab = "", main = "Plan d'expériences obtenu")
+```
+
+#### Question 4
+
+```{r}
+additional_points <- 9 - N_BA
+for (i in 1:additional_points) {
+    # Mettre à jour le modèle de krigeage avec les nouveaux points ajoutés
+    metamodel <- km(formula = ~1, design = PX_BA, response = rep(1, nrow(PX_BA)), covtype = "matern5_2", coef.trend = trend, coef.cov = coef.cov, coef.var = sigma^2) 
+  
+    # Prédire la variance de krigeage pour chaque point de la base de test
+    variance_krigeage <- (predict(metamodel, newdata = data.frame(design = PX_BT), type = "SK")$sd)^2
+    
+    # Trouver l'indice du point où la variance de krigeage est maximale
+    indice_max <- which.max(variance_krigeage)
+    
+    # Ajouter le point où la variance de krigeage est maximale à l'ensemble d'apprentissage
+    PX_BA <- rbind(PX_BA, PX_BT[indice_max])
+    
+    # Afficher le graphe intermédiaire
+    plot(PX_BT, variance_krigeage, type = "l", col = "blue", xlab = "x", ylab = "Variance de krigeage", main = paste("Étape", i, ": Variance de krigeage maximale ajoutée"))
+    points(PX_BT[indice_max], variance_krigeage[indice_max], col = "red", pch = 19)
+    
+    # Afficher le plan d'expériences jusqu'à cette étape
+    plot(PX_BA, rep(0, length(PX_BA)), col = "blue", pch = 19, xlim = c(0, 1), ylim = c(-1, 1), xlab = "x", ylab = "", main = paste("Plan d'expériences jusqu'à l'étape", i))
+    points(PX_BA[nrow(PX_BA), ], 0, col = "red", pch = 19)  # Dernier point ajouté en rouge
+}
+```
+
+### Question 5
+
+```{r}
+######################## exemple en dimnesion 2 ##########################
+N_BA = 5                ## Nombre de points de la base d'apprentissage (BA)
+d = 2                    ## Dimension de l'espace des entrees
+X_init <- lhsDesign(N_BA,d) # plan LHS non optimisé
+PX_BA <- maximinSA_LHS(X_init$design)$design
+N_BT = 10                 ### Nombre de points de la base de test
+PX_BT = expand.grid(seq(0, 1, length.out = N_BT), seq(0, 1, length.out = N_BT))   ### Simulation d'une premiere base de test
+
+coef.cov <- c(theta <- 0.2,theta)
+sigma <- 1
+#trend <- c(intercept <- -1, beta1 <- 2)
+trend <- c(intercept <- 0)
+
+metamodel <- km(formula=~1,design=PX_BA,response=rep(1,N_BA),covtype="matern5_2",
+                 coef.trend=trend, coef.cov=coef.cov, coef.var=sigma^2) 
+
+colnames(PX_BT) <- colnames(PX_BA)
+variance_krigeage <- (predict(metamodel, newdata = PX_BT, type = "SK")$sd)^2
+
+# Trouver l'indice du point où la variance de krigeage est maximale
+indice_max <- which.max(variance_krigeage)
+
+# Extraire la ligne de PX_BT à ajouter à la fin de PX_BA
+ligne_a_ajouter <- as.numeric(PX_BT[indice_max, ])
+
+# Ajouter la ligne à la fin de PX_BA
+PX_BA <- rbind(PX_BA, ligne_a_ajouter)
+
+
+# Tracer les points de PX_BA
+plot(PX_BA[, 1], PX_BA[, 2], col = "blue", pch = 19, xlab = "X", ylab = "Y")
+
+# Ajouter le dernier point en rouge
+points(PX_BA[nrow(PX_BA), 1], PX_BA[nrow(PX_BA), 2], col = "red", pch = 19)
+
+
+
+```
+
+```{r}
+# Boucle pour rajouter 4 autres points de la même manière
+for (i in 1:4) {
+  # Trouver l'indice du point où la variance de krigeage est maximale
+  indice_max <- which.max(variance_krigeage)
+  
+  # Extraire la ligne de PX_BT à ajouter à la fin de PX_BA
+  ligne_a_ajouter <- as.numeric(PX_BT[indice_max, ])
+  
+  # Ajouter la ligne à la fin de PX_BA
+  PX_BA <- rbind(PX_BA, ligne_a_ajouter)
+  
+  # Mettre à jour la variance de krigeage avec le nouveau point ajouté
+  variance_krigeage[indice_max] <- NA
+  
+  # Tracer les points de PX_BA avec le dernier point ajouté en rouge
+  plot(PX_BA[, 1], PX_BA[, 2], col = "blue", pch = 19, xlab = "X", ylab = "Y")
+  points(PX_BA[nrow(PX_BA), 1], PX_BA[nrow(PX_BA), 2], col = "red", pch = 19)
+}
+```
+
+Les premiers points de la suite sont placés dans les coins.
+
+# Partie 2
+
+## Exercice 1
+
+#### Question 1
+
+#### Question 2
+
+#### Question 3
+
+En projetant sur X1, bleu = rouge
+
+En projetant sur X2, bleu = rouge
+
+```{r}
+library(sensitivity)
+# Nombre d'evaluations par plan
+n <- 10
+# Dimension
+d <- 2
+set.seed(245)
+# Construction des deux echantillons PX1 et PX2 (loi uniforme)
+PX1 <- matrix(runif(2 * n), ncol = d)
+PX2 <- matrix(runif(2 * n), ncol = d)
+
+# Obtention des plans
+res_SobolEff <- sobolEff(model=NULL,PX1,PX2)
+
+# Composantes de l’objet fourni en retour de sobolEff
+names(res_SobolEff)
+str(res_SobolEff)
+
+# Taille total du plan d’experience
+dim(res_SobolEff$X)
+
+# on gele suivant la premiere dimension
+plot(res_SobolEff$X[1:n,],xlim=c(0,1),ylim=c(0,1),col='red',xlab='X1',ylab='X2') 
+points(res_SobolEff$X[(n+1):(2*n),],col='blue',pch=3) 
+abline(v=res_SobolEff$X[1:n,1],lty=2,col='darkgrey')
+
+# on gele suivant la deuxième dimension
+points(res_SobolEff$X[(2*n+1):(3*n),],col='green',pch=3) 
+abline(h=res_SobolEff$X[1:n,2],lty=2,col='darkgrey')
+
+###################
+# Methode sobolroals
+###################
+
+# Obtention des plans
+set.seed(245)
+res_Sobolroalhs <- sobolroalhs(model = NULL,d,n,p=1,order=1)
+
+# Composantes de l’objet fourni en retour de sobolEff
+names(res_Sobolroalhs)
+str(res_Sobolroalhs)
+
+# Taille total du plan d’experience
+dim(res_Sobolroalhs$X)
+
+plot(res_Sobolroalhs$X[1:n,],xlim=c(0,1),ylim=c(0,1),col='red',xlab='X1',ylab='X2') 
+points(res_Sobolroalhs$X[(n+1):(2*n),],col='blue',pch=3) 
+abline(v=res_Sobolroalhs$X[1:n,1],lty=2,col='darkgrey')
+
+# on observe un alignement dans chaque dimension
+
+# -------------------------------------------------------------
+# Estimation des indices f(x1,x2) = x1 + x2
+# Methode sobolEff
+# -------------------------------------------------------------
+
+#taille du plan d'expériences
+n = 1000
+d = 2
+
+somme2 <- function(X){return(X[,1]+X[,2])}
+
+# cas où X1 Unif[-1,1] et X2 Unif[-1,1]
+############################
+PX1 <- data.frame(cbind(matrix(runif( n,-1,1), nrow = n),matrix(runif( n,-1,1), nrow = n)))
+PX2 <- data.frame(cbind(matrix(runif( n,-1,1), nrow = n),matrix(runif( n,-1,1), nrow = n)))
+
+res_soboleff <- sobolEff(model = somme2,PX1, PX2,nboot=100,conf=0.95)
+print(res_soboleff)
+plot(res_soboleff)
+
+# cas où X1 Unif[-1,1] et X2 Unif[0,2]
+############################
+
+# cas où X1 Unif[-1,1] et X2 Unif[-2,2]
+############################
+
+# cas où X1 Unif[-1,1] et X2 N(0,2/sqrt(3))
+############################
+
+# -------------------------------------------------------------
+# Estimation des indices f(x1,x2) = x1 * x2
+# Methode sobolEff
+# -------------------------------------------------------------
+
+# -------------------------------------------------------------
+# Estimation des indices sur ishigami
+# f(x1,x2,x3) = sin(X1) + 7 sin(X2)^2 + 0.1 * X3^4*sin(X1)
+# Methode sobolroals et saltelli
+# -------------------------------------------------------------
+```
+
+## Exercice 2
+
+```{r}
+
+# Définir le modèle Y = X1 + X2
+model <- function(x) {
+  return(x[, 1] + x[, 2])
+}
+
+n=1000
+# Scénario 1 : X1 suit U([-1,1]) et X2 suit U([-1,1])
+S1_scenario1 <- 1/3
+S2_scenario1 <- 1/3
+# Générer les données pour X1
+X1 <- data.frame(matrix(runif(2 * n, min = -1, max = 1), nrow = n))
+
+# Générer les données pour X2
+X2 <- data.frame(matrix(runif(2 * n, min = -1, max = 1), nrow = n))
+
+indices_scenario1 <- sobolEff(model, X1,X2, order = 1, nboot = 100, conf = 0.95)
+
+# Scénario 2 : X1 suit U([-1,1]) et X2 suit U([0,2])
+S1_scenario2 <- 1/3
+S2_scenario2 <- 0
+# Générer les données pour X1
+X1 <- data.frame(matrix(runif(2 * n, min = -1, max = 1), nrow = n))
+
+# Générer les données pour X2
+X2 <- data.frame(matrix(runif(2 * n, min = 0, max = 2), nrow = n))
+
+indices_scenario2 <- sobolEff(model, X1,X2, order = 1, nboot = 100, conf = 0.95)
+
+# Scénario 3 : X1 suit U([-1,1]) et X2 suit U([-2,2])
+S1_scenario3 <- 1/3
+S2_scenario3 <- 1/3
+# Générer les données pour X1
+X1 <- data.frame(matrix(runif(2 * n, min = -1, max = 1), nrow = n))
+
+# Générer les données pour X2
+X2 <- data.frame(matrix(runif(2 * n, min = -2, max = 2), nrow = n))
+
+indices_scenario3 <- sobolEff(model, X1,X2, order = 1, nboot = 100, conf = 0.95)
+# Scénario 4 : X1 suit U([-1,1]) et X2 suit N(0, (2/sqrt(3))^2)
+S1_scenario4 <- 1/3
+S2_scenario4 <- 0
+# Générer les données pour X1
+X1 <- data.frame(matrix(runif(2 * n, min = -1, max = 1), nrow = n))
+
+# Générer les données pour X2
+X2 <- data.frame(matrix(rnorm(2 * n, mean = 0, sd= 2/(3)^0.5), nrow = n))
+
+indices_scenario4 <- sobolEff(model, X1,X2, order = 1, nboot = 100, conf = 0.95)
+```
+
+```{r}
+# Affichage des résultats pour le scénario 1
+print("Scénario 1 : X1 suit U([-1,1]) et X2 suit U([-1,1])")
+print(indices_scenario1$T)
+
+# Affichage des résultats pour le scénario 2
+print("Scénario 2 : X1 suit U([-1,1]) et X2 suit U([0,2])")
+print(indices_scenario2$T)
+
+# Affichage des résultats pour le scénario 3
+print("Scénario 3 : X1 suit U([-1,1]) et X2 suit U([-2,2])")
+print(indices_scenario3$T)
+
+# Affichage des résultats pour le scénario 4
+print("Scénario 4 : X1 suit U([-1,1]) et X2 suit N(0, (2/sqrt(3))^2)")
+print(indices_scenario4$T)
+
+```
+
+## Exercice 3
+
+```{r}
+# Installer et charger le package "sensitivity"
+library(sensitivity)
+
+ishigami.fun <- function(x) {
+  return(sin(x[,1]) + 7 * (sin(x[,2]))^2 + 0.1 * (x[,3])^4 * sin(x[,1]))
+}
+
+library(boot)
+
+# Définir la taille de l'échantillon
+n <- 1000
+
+# Générer les données pour X1
+X1 <- data.frame(matrix(runif(3 * n, min = -pi, max = pi), nrow = n))
+
+# Générer les données pour X2
+X2 <- data.frame(matrix(runif(3 * n, min = -pi, max = pi), nrow = n))
+
+
+# Calculer les indices de Sobol
+sobol_indices <- sobolSalt(model = ishigami.fun, X1, X2,scheme="B", nboot = 100)
+
+# Afficher les résultats
+print(sobol_indices)
+
+```
+
+## Exercice 3
+
+# Partie 3
+
+## Exercice 2
+
+#### Question 1
+
+```{r}
+# Définition de la fonction f(x)
+f <- function(x) {
+  return(10 *(x * sin(10 * x) + x * cos(20 * x)))
+}
+
+# Générer une séquence de valeurs de x de 0 à 1 avec un pas de grille de 0.01
+x <- seq(0, 1, by = 0.01)
+
+# Calcul des valeurs de f(x)
+y <- f(x)
+
+# Tracer la fonction
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Fonction f(x) sur [0, 1]")
+
+```
+
+#### Question 2
+
+```{r}
+# Choisir 4 indices aléatoires sur la trajectoire
+set.seed(123)  # Pour la reproductibilité
+indices <- sample(length(x), 4)
+
+# Extraire les valeurs correspondantes de x et de f(x) pour ces indices
+x_selected <- x[indices]
+y_selected <- y[indices]
+
+# Tracer la fonction f(x)
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Fonction f(x) sur [0, 1] avec 4 points aléatoires")
+
+# Ajouter les points sélectionnés en rouge sur le graphique
+points(x_selected, y_selected, col = "red", pch = 19)
+```
+
+#### Question 3
+
+```{r}
+library(DiceKriging)
+
+# Définir la fonction f(x)
+f <- function(x) {
+  return(10 * x * sin(10 * x) + x * cos(20 * x))
+}
+
+# Générer les données d'entrainement avec les 4 points sélectionnés
+x_train <- matrix(x_selected, ncol = 1)
+y_train <- y_selected
+
+# Spécifier les bornes inférieures pour les paramètres theta
+lower <- rep(0.05, length(x_train))
+
+# Ajuster un modèle de krigeage avec optim.method = "gen"
+kriging_model <- km(formula = ~1, design = x_train, response = y_train,
+                    covtype = "matern5_2", control = list(optimizer = "gen"), lower = lower)
+
+# Prédire les valeurs et les intervalles de confiance pour toute la plage de x
+x_pred <- matrix(x, ncol = 1)
+
+pred <- predict(kriging_model, newdata = x_pred, type = "UK")
+
+# Tracer la fonction f(x) avec le prédicteur et les intervalles de confiance
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Krigeage avec intervalles de confiance")
+points(x_selected, y_selected, col = "red", pch = 19)
+
+# Prédicteur en bleu
+lines(x, pred$mean, col = "red")
+
+# Limites des intervalles de confiance à 95% en pointillés bleus
+lines(x, pred$mean + 1.96 * pred$sd, col = "red", lty = 2)
+lines(x, pred$mean - 1.96 * pred$sd, col = "red", lty = 2)
+
+```
+
+#### Question 4
+
+```{r}
+
+# Définir une grille d'évaluation
+grid <- lhsDesign(1000, 1)
+
+# Calculer l'Expected Improvement (EI) sur la grille
+ei_values <- EI(grid$design, model=kriging_model)
+
+# Tracer l'EI sur la grille
+plot(grid$design, ei_values, type = "p", main = "Expected Improvement", xlab = "x", ylab = "EI", col = "blue")
+
+```
+
+```{r}
+# Utiliser la fonction maxEI pour trouver le point où l'amélioration est optimale
+optimal_point <- max_EI(model = kriging_model,lower=0,upper=1)
+
+# Extraire les coordonnées du point optimal
+optimal_x <- optimal_point$par
+optimal_ei <- optimal_point$value
+
+# Tracer l'EI sur la grille avec des points et le point optimal
+plot(grid$design, ei_values, type = "p", main = "Expected Improvement", xlab = "x", ylab = "EI", col = "blue")
+points(optimal_x, optimal_ei, col = "red", pch = 19)
+
+```
+
+```{r}
+
+f <- function(x) {
+  return(10 * (x * sin(10 * x) + x * cos(20 * x)))
+}
+
+# Mettre à jour le plan d'expériences avec le nouveau point
+updated_x_train <- rbind(x_train, optimal_x)
+
+# Mettre à jour le vecteur d'observation avec la nouvelle valeur
+updated_y_train <- c(y_train, f(optimal_x))
+
+# Ajuster un nouveau modèle de krigeage avec les données mises à jour
+updated_kriging_model <- km(formula = ~1, design = updated_x_train, response = updated_y_train,
+                            covtype = "matern5_2", control = list(optimizer = "gen"), lower = lower)
+
+# Mettre à jour les prédictions avec le nouveau modèle de krigeage
+updated_pred <- predict(updated_kriging_model, newdata = x_pred, type = "UK")
+
+# Tracer la fonction f(x) avec le prédicteur et les intervalles de confiance mis à jour
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Krigeage avec intervalles de confiance")
+points(updated_x_train, updated_y_train, col = "red", pch = 19)
+
+# Prédicteur en bleu avec les données mises à jour
+lines(x, updated_pred$mean, col = "red")
+
+# Limites des intervalles de confiance à 95% en pointillés bleus avec les données mises à jour
+lines(x, updated_pred$mean + 1.96 * updated_pred$sd, col = "red", lty = 2)
+lines(x, updated_pred$mean - 1.96 * updated_pred$sd, col = "red", lty = 2)
+points(optimal_x, f(optimal_x), col = "red", pch = 19)
+
+```
+
+### question 6
+
+```{r}
+# Initialisation
+epsilon <- 0.00001  # Critère de convergence
+
+while (optimal_ei > epsilon) {
+  x_train <- updated_x_train
+  y_train <- updated_y_train
+
+  # Spécifier les bornes inférieures pour les paramètres theta
+  lower <- rep(0.05, length(x_train))
+  
+  # Ajuster un modèle de krigeage avec optim.method = "gen"
+  kriging_model <- km(formula = ~1, design = x_train, response = y_train,
+                      covtype = "matern5_2", control = list(optimizer = "gen"), lower = lower)
+  
+  # Prédire les valeurs et les intervalles de confiance pour toute la plage de x
+  x_pred <- matrix(x, ncol = 1)
+  pred <- predict(kriging_model, newdata = x_pred, type = "UK")
+  
+    # Définir une grille d'évaluation
+  grid <- lhsDesign(1000, 1)
+  
+  # Calculer l'Expected Improvement (EI) sur la grille
+  ei_values <- EI(grid$design, model=kriging_model)
+  
+    # Utiliser la fonction maxEI pour trouver le point où l'amélioration est optimale
+  optimal_point <- max_EI(model = kriging_model,lower=0,upper=1)
+  
+  # Extraire les coordonnées du point optimal
+  optimal_x <- optimal_point$par
+  optimal_ei <- optimal_point$value
+    
+  # Mettre à jour le plan d'expériences avec le nouveau point
+  updated_x_train <- rbind(x_train, optimal_x)
+  
+  # Mettre à jour le vecteur d'observation avec la nouvelle valeur
+  updated_y_train <- c(y_train, f(optimal_x))
+  
+  
+} 
+ 
+# Tracer la fonction f(x) avec le prédicteur et les intervalles de confiance mis à jour
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Krigeage avec intervalles de confiance")
+points(updated_x_train, updated_y_train, col = "red", pch = 19)
+
+# Prédicteur en bleu avec les données mises à jour
+lines(x, pred$mean, col = "red")
+
+# Limites des intervalles de confiance à 95% en pointillés bleus avec les données mises à jour
+lines(x, pred$mean + 1.96 * pred$sd, col = "red", lty = 2)
+lines(x, pred$mean - 1.96 * pred$sd, col = "red", lty = 2)
+
+
+# Tracer l'EI sur la grille avec des points et le point optimal
+plot(grid$design, ei_values, type = "p", main = "Expected Improvement", xlab = "x", ylab = "EI", col = "blue")
+points(optimal_x, optimal_ei, col = "red", pch = 19)
+print(max(updated_y_train))
+```
+
+On voit qu'on obtient rapidement une convergence du critère max EI (quelques points ont été ajoutés).
+
+### question 7
+
+```{r}
+# Créer une grille de points pour tracer la surface
+n <- 50
+x_grid <- seq(0, 1, length.out = n)
+y_grid <- seq(0, 1, length.out = n)
+z <- matrix(0, nrow = n, ncol = n)
+
+# Calculer les valeurs de la fonction Branin sur la grille
+for (i in 1:n) {
+  for (j in 1:n) {
+    z[i, j] <- branin(rbind(x_grid[i], y_grid[j]))
+  }
+}
+
+# Tracer la surface de la fonction Branin en 3D
+persp(x_grid, y_grid, z, col = "lightblue", theta = 30, phi = 20, xlab = "x1", ylab = "x2", zlab = "f(x1, x2)", main = "Surface de la fonction Branin")
+```
+
+```{r}
+# Nombre de points à générer
+n_points <- 1000
+
+# Générer des coordonnées x et y aléatoires entre 0 et 1
+x_coords <- runif(n_points, min = 0, max = 1)
+y_coords <- runif(n_points, min = 0, max = 1)
+
+# Créer une matrice de points avec les coordonnées x et y
+points_matrix <- cbind(x_coords, y_coords)
+
+
+
+# Créer une matrice de points avec les coordonnées x et y
+points_matrix <- cbind(x_coords, y_coords)
+
+# Appliquer la fonction Branin sur les points
+y <- sapply(1:n_points, function(i) branin(c(x_coords[i], y_coords[i])))
+
+
+# Choisir 4 indices aléatoires parmi les points
+set.seed(123)  # Pour la reproductibilité
+indices <- sample(n_points, 9)
+
+# Extraire les valeurs correspondantes de x et de y pour ces indices
+x_selected <- points_matrix[indices,]
+y_selected <- y[indices]
+
+
+
+
+```
+
+```{r}
+# Initialisation
+epsilon <- 0.001  # Critère de convergence
+
+updated_x_train <- x_selected
+updated_y_train <- y_selected
+while (optimal_ei > epsilon) {
+  x_train <- updated_x_train
+  y_train <- updated_y_train
+
+  
+  # Ajuster un modèle de krigeage avec optim.method = "gen"
+  kriging_model <- km(formula = ~1, design = x_train, response = y_train,
+                      covtype = "matern5_2", control = list(optimizer = "gen"))
+  colnames(points_matrix) <- colnames(x_train)
+  pred <- predict(kriging_model, newdata = points_matrix, type = "SK")
+  
+    # Définir une grille d'évaluation
+  grid <- lhsDesign(1000, 2)
+  
+  # Calculer l'Expected Improvement (EI) sur la grille
+  ei_values <- EI(grid$design, model=kriging_model)
+  
+   optimal_index <- which.max(ei_values)
+  optimal_x <- grid$design[optimal_index, ]
+  optimal_ei <- ei_values[optimal_index]
+    
+  # Mettre à jour le plan d'expériences avec le nouveau point
+  updated_x_train <- rbind(x_train, optimal_x)
+  
+  # Mettre à jour le vecteur d'observation avec la nouvelle valeur
+  updated_y_train <- c(y_train, branin(optimal_x))
+  
+  
+} 
+
+cat("Maximum de y_train :", max(y_train), "\n")
+cat("Maximum de y :", max(y), "\n")
+
+```
+
+L'algorithme fonctionne mais mal: je n'ai pas reussi a adapter la fonction max_EI en 2D et j'ai peut etre des mauvais paramètres pour le modele de krigeage... Cependant on converge bien vers une valeur qui est du meme ordre de grandeur que le maximum réel. avec un peu plus de temps je pourrais faire fonctionner le programme plus precisement.
+
+## Exercice 3
+
+### question 1
+
+```{r}
+
+# Définition de la fonction f(x)
+f <- function(x) {
+  return(10 *(x * sin(10 * x) + x * cos(20 * x)))
+}
+
+# Générer une séquence de valeurs de x de 0 à 1 avec un pas de grille de 0.01
+x <- seq(0, 1, by = 0.01)
+
+# Calcul des valeurs de f(x)
+y <- f(x)
+
+# Tracer la fonction
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Fonction f(x) sur [0, 1]")
+
+
+# Choisir 4 indices aléatoires sur la trajectoire
+set.seed(123)  # Pour la reproductibilité
+indices <- sample(length(x), 4)
+
+# Extraire les valeurs correspondantes de x et de f(x) pour ces indices
+x_selected <- x[indices]
+y_selected <- y[indices]
+
+# Tracer la fonction f(x)
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Fonction f(x) sur [0, 1] avec 4 points aléatoires")
+
+# Ajouter les points sélectionnés en rouge sur le graphique
+points(x_selected, y_selected, col = "red", pch = 19)
+
+
+
+# Générer les données d'entrainement avec les 4 points sélectionnés
+x_train <- matrix(x_selected, ncol = 1)
+y_train <- y_selected
+
+# Spécifier les bornes inférieures pour les paramètres theta
+lower <- rep(0.05, length(x_train))
+
+# Ajuster un modèle de krigeage avec optim.method = "gen"
+kriging_model <- km(formula = ~1, design = x_train, response = y_train,
+                    covtype = "matern5_2", control = list(optimizer = "gen"), lower = lower)
+
+# Prédire les valeurs et les intervalles de confiance pour toute la plage de x
+x_pred <- matrix(x, ncol = 1)
+
+pred <- predict(kriging_model, newdata = x_pred, type = "UK")
+
+# Tracer la fonction f(x) avec le prédicteur et les intervalles de confiance
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Krigeage avec intervalles de confiance")
+points(x_selected, y_selected, col = "red", pch = 19)
+
+# Prédicteur en bleu
+lines(x, pred$mean, col = "red")
+
+# Limites des intervalles de confiance à 95% en pointillés bleus
+lines(x, pred$mean + 1.96 * pred$sd, col = "red", lty = 2)
+lines(x, pred$mean - 1.96 * pred$sd, col = "red", lty = 2)
+```
+
+### question 2
+
+```{r}
+library("KrigInv")
+# Initialisation
+epsilon <- 0.00001  # Critère de convergence
+optimal_ei<- 10
+ updated_x_train <- x_train
+  updated_y_train <- y_train
+#while (optimal_ei > epsilon) {
+
+for (i in 1:8) {
+
+  x_train <- updated_x_train
+  y_train <- updated_y_train
+  # Spécifier les bornes inférieures pour les paramètres theta
+  lower <- rep(0.05, length(x_train))
+  
+  # Ajuster un modèle de krigeage avec optim.method = "gen"
+  kriging_model <- km(formula = ~1, design = x_train, response = y_train,
+                      covtype = "matern5_2", control = list(optimizer = "gen"), lower = lower)
+  
+  # Prédire les valeurs et les intervalles de confiance pour toute la plage de x
+  x_pred <- matrix(x, ncol = 1)
+  pred <- predict(kriging_model, newdata = x_pred, type = "UK")
+  
+  
+  # Calculer l'Expected Improvement (EI) sur la grille
+  egi_values <- EGI(T=80,model=kriging_model,method="jn",fun=f,iter=1,
+           lower=0,upper=1)
+  
+  
+  # Extraire les coordonnées du point optimal
+  optimal_x <- egi_values$par
+  optimal_ei <- egi_values$value
+
+  # Mettre à jour le plan d'expériences avec le nouveau point
+  updated_x_train <- rbind(x_train, optimal_x)
+  
+  # Mettre à jour le vecteur d'observation avec la nouvelle valeur
+  updated_y_train <- c(y_train, optimal_ei)
+  
+  
+} 
+
+  
+
+# Tracer la fonction f(x) avec le prédicteur et les intervalles de confiance mis à jour
+plot(x, y, type = "l", col = "blue", xlab = "x", ylab = "f(x)", main = "Krigeage avec intervalles de confiance")
+points(updated_x_train, updated_y_train, col = "red", pch = 19)
+
+# Prédicteur en bleu avec les données mises à jour
+lines(x, pred$mean, col = "red")
+
+# Limites des intervalles de confiance à 95% en pointillés bleus avec les données mises à jour
+lines(x, pred$mean + 1.96 * pred$sd, col = "red", lty = 2)
+lines(x, pred$mean - 1.96 * pred$sd, col = "red", lty = 2)
+
+
+ 
+```
+
+### question 4
+
+```{r}
+# Identifier les indices des points où la prédiction est supérieure à 2
+indices_superieurs <- which(pred$mean > 2)
+
+# Identifier les indices des points où la prédiction est inférieure ou égale à 2
+indices_inferieurs <- which(pred$mean <= 2)
+
+# Identifier les points où il y a un changement de statut (inférieur à 2 à supérieur à 2 ou vice versa)
+changement_statut <- c(diff(pred$mean > 2) != 0, TRUE)
+
+# Extraire les bornes des intervalles où pred$mean > 2
+bornes_intervalles <- x[changement_statut]
+
+# Créer un tableau pour afficher les bornes des intervalles où pred$mean > 2
+tableau_intervalles <- data.frame(Intervalles = paste(bornes_intervalles[-length(bornes_intervalles)], bornes_intervalles[-1], sep = " - "))
+
+# Sélectionner une ligne sur deux du tableau
+tableau_intervalles_selection <- tableau_intervalles[c(TRUE, FALSE), ]
+
+# Afficher le tableau résultant
+print(tableau_intervalles_selection)
+
+
+```
+
+Voici les intervalles où la fonction estimée par la methode EGI avec deux points est superieure à 2.

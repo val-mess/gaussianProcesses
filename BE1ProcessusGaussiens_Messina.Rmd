@@ -1,0 +1,117 @@
+---
+title: "BE1ProcessusGaussiens_MESSINA_Valentin"
+output:
+  html_document:
+    df_print: paged
+---
+Krigeage simple
+
+On considere la structure de covariance gaussienne et on introduit les parametres.
+
+```{r}
+m <- 0
+sigma2 <- 1
+n_points <- 100
+
+matern_cov <- function(x1, x2, theta) {
+  p <- length(x1)
+  result <- 1
+  
+  for (j in 1:p) {
+    term1 <- (1 + (sqrt(5) * abs(x1[j] - x2[j]) / theta[j]) - (5/3) * ((x1[j] - x2[j])^2 / theta[j]^2))
+    term2 <- exp(-sqrt(5) * abs(x1[j] - x2[j]) / theta[j])
+    result <- result * (term1 * term2)
+  }
+  
+  return(result)
+}
+
+x <- seq(0, 1, length.out = n_points)
+
+matrice_cov <- function(theta){
+  matrice_covariance <- matrix(0, n_points, n_points)
+
+  for (i in 1:n_points) {
+    for (j in 1:n_points) {
+    matrice_covariance[i, j] <- matern_cov(x[i], x[j], theta)
+    }
+  }
+   matrice_covariance <- matrice_covariance * 
+   return(matrice_covariance)
+}
+```
+
+On peut donc realiser les simulations non conditionnelles en utilisant la decomposition de Choleski de la matrice de variance-covariance. 
+
+```{r}
+simulate_non_conditional <- function(mean_vector, covariance_matrix, n_simulations) {
+  L <- chol(covariance_matrix)
+  u <- matrix(rnorm(n_points * n_simulations), n_points, n_simulations)
+  simulated_values <- matrix(mean_vector, nrow = n_points, ncol = n_simulations) + t(L) %*% u
+  return(simulated_values)
+}
+
+n_simulations <- 5
+
+theta <- 1
+matrice_covariance <- matrice_cov(theta)
+mean_vector <- rep(m, n_points)
+simulated_values <- simulate_non_conditional(mean_vector, matrice_covariance, n_simulations)
+matplot(x, simulated_values, type = "l", col = rainbow(n_simulations), xlab = "x", ylab = "Simulated Values",
+        main = sprintf("Non Conditional simulations \nSigma2: %.2f, Mean: %.2f, Theta: %.2f", sigma2, m, theta))
+
+
+theta <- 0.3
+matrice_covariance <- matrice_cov(theta)
+mean_vector <- rep(m, n_points)
+simulated_values <- simulate_non_conditional(mean_vector, matrice_covariance, n_simulations)
+matplot(x, simulated_values, type = "l", col = rainbow(n_simulations), xlab = "x", ylab = "Simulated Values",
+        main = sprintf("Non Conditional simulations \nSigma2: %.2f, Mean: %.2f, Theta: %.2f", sigma2, m, theta))
+```
+On remarque que plus $\theta$ est grand, plus les simulations sont applaties et il est facile de predire le point proche des points connus.
+
+```{r}
+selected_trajectory <- simulated_values[, 1]
+selected_points <- sample(1:n_points, 5)
+selected_x <- x[selected_points]
+selected_values <- selected_trajectory[selected_points]
+selected_cov_matrix <- matrice_covariance[selected_points, selected_points]
+
+for (i in 1:5) {
+  for (j in 1:5) {
+    selected_cov_matrix[i, j] <- matern_cov(selected_x[i], selected_x[j], theta)
+  }
+}
+
+selected_cov_matrix <- selected_cov_matrix * sigma2
+print(selected_cov_matrix)
+
+simple_kriging_predictor <- function(x0, selected_x, selected_values, m, theta, sigma2) {
+  n_points <- length(selected_x)
+  Rxx <- matrix(0, n_points, n_points)
+  for (i in 1:n_points) {
+    for (j in 1:n_points) {
+      Rxx[i, j] <- matern_cov(selected_x[i], selected_x[j], theta)
+    }
+  }
+  cov_vector <- m + sapply(selected_x, function(xi) matern_cov(xi, x0, theta)) %*% solve(Rxx, selected_values - rep(m, n_points))
+  variance <- sigma2 * (1 - sapply(selected_x, function(xi) matern_cov(xi, x0, theta)) %*% solve(Rxx, 
+                                                                                                 sapply(selected_x, function(xi) matern_cov(xi, x0, theta))))
+  return(list(predictor = cov_vector, variance = variance))
+}
+
+x_discretized <- seq(0, 1, length.out = n_points)
+
+predictors <- sapply(x_discretized, function(x0) simple_kriging_predictor(x0, selected_x, selected_values, m, theta, sigma2)$predictor)
+
+plot(x, selected_trajectory, type = "l", col = "black", xlab = "x", ylab = "Values",
+     main = sprintf("Selected Trajectory and Simple Kriging Predictor\nSigma2: %.2f, Theta: %.2f, M: %.2f", sigma2, theta, m))
+points(selected_x, selected_values, col = "red", pch = 16)
+
+result <- sapply(x,function(xi) simple_kriging_predictor(xi, selected_x, selected_values, m, theta, sigma2)$predictor)
+lines(x, result, col = "blue")
+
+pred_var <- sapply(x, function(xi) simple_kriging_predictor(xi, selected_x, selected_values, m, theta, sigma2)$variance)
+lines(x, result + sqrt(pred_var), col="purple",lty = 2)
+lines(x, result - sqrt(pred_var), col="purple",lty = 2)
+```

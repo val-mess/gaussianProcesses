@@ -1,0 +1,673 @@
+---
+title: "BE_KrigeageBayesien_MESSINA_MUNOZ"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Exercice 1
+
+1 - Estimation de $m$ et $\sigma^2$ par maximum de vraisemblance.
+
+La vraisemblance a l'expression suivante :
+
+$\mathcal{L}(x_1, \dots, x_n;m,\sigma^2)=\displaystyle\prod_{i=1}^n \frac{1}{\sqrt{2 \pi \sigma^2}} \exp(-\frac{(x_i-m)^2}{2\sigma^2})$
+
+On optimise le logarithme de la vraisemblance :
+
+$\ell(x_1, \dots, x_n;m,\sigma^2)=-\ln (\mathcal{L}(x_1, \dots, x_n;m,\sigma^2))$
+
+Donc :
+
+$\ell(x_1, \dots, x_n;m,\sigma^2)=\frac{n}{2}\ln(2\pi\sigma^2) + \displaystyle\sum_{i=1}^n \frac{(x_i-\hat{m})^2}{2\sigma^2}$
+
+Cette fonction étant convexe, l'optimum existe et est obtenu au point où le gradient est nul. On obtient :
+
+$\hat{m} = \displaystyle\frac{1}{n}\displaystyle\sum_{i=1}^n x_i$ et $\hat{\sigma^2} = \displaystyle\frac{1}{n} \displaystyle\sum_{i=1}^n (x_i-\hat{m})^2$
+
+2 -
+
+```{r}
+posterior_density <- function(data, m, sigma2) {
+  # Calcul de la vraisemblance conditionnelle (loi normale)
+  likelihood <- sum(dnorm(data, mean = m, sd = sqrt(sigma2), log = TRUE))
+  # Calcul de la densité a priori pour m et sigma2
+  prior_sigma2 <- dunif(sigma2, min = 0, max = 100, log = TRUE)
+  #prior_m =1
+  log_posterior_density <- likelihood + prior_sigma2
+  
+  return(exp(log_posterior_density))
+}
+
+
+metropolis_hastings <- function(data, niter, startval_m, startval_sigma2, proposalsd_m, proposalsd_sigma2) {
+  x_m <- numeric(niter)
+  x_sigma2 <- numeric(niter)
+  x_m[1] <- startval_m
+  x_sigma2[1] <- startval_sigma2
+  
+  for (i in 2:niter) {
+    current_m <- x_m[i - 1]
+    current_sigma2 <- x_sigma2[i - 1]
+    
+    # Proposer un nouvel état
+    proposed_m <- rnorm(1, mean = current_m, sd = proposalsd_m)
+    proposed_sigma2 <- rnorm(1, mean = current_sigma2, sd = proposalsd_sigma2)
+    
+    # Calcul de la vraisemblance conditionnelle pour les nouvelles propositions
+    likelihood_proposed <- sum(dnorm(data, mean = proposed_m, sd = sqrt(proposed_sigma2), log = TRUE))
+    prior_proposed <- dunif(proposed_sigma2, min = 0, max = 100, log = TRUE)  # Densité a priori des nouvelles propositions
+    
+    # Calcul de la vraisemblance conditionnelle pour les valeurs observées de sigma2 et m
+    likelihood_current <- sum(dnorm(data, mean = current_m, sd = sqrt(current_sigma2), log = TRUE))
+    prior_current <- dunif(current_sigma2, min = 0, max = 100, log = TRUE)  
+    # Calcul du rapport d'acceptation
+    log_A <- (likelihood_proposed + prior_proposed) - (likelihood_current + prior_current)
+    # Vérification si le logarithme du rapport d'acceptation est fini
+    if (!is.nan(log_A)) {
+      # Accepter ou rejeter le nouvel état en utilisant les logarithmes
+      if (log(runif(1)) < log_A) {
+        x_m[i] <- proposed_m
+        x_sigma2[i] <- proposed_sigma2
+      } else {
+        x_m[i] <- current_m
+        x_sigma2[i] <- current_sigma2
+      }
+    } else {
+      # Si logarithme du rapport d'acceptation est NaN, conserver état actuel
+      x_m[i] <- current_m
+      x_sigma2[i] <- current_sigma2
+    }
+  }
+  
+  return(list(m = x_m, sigma2 = x_sigma2))
+}
+
+niter <- 10000
+startval_m <- 1  
+startval_sigma2 <- 1  
+
+#Parametres de diversification
+proposalsd_m <- 10
+proposalsd_sigma2 <- 10
+
+# Données observées
+set.seed(42)  
+n <- 10  
+m0 <- 10  
+sigma20 <- 5  
+
+# Génération des données observées à partir de N(m0, sigma20)
+data_observed <- rnorm(n, mean = m0, sd = sqrt(sigma20))
+
+# Exécuter l'algorithme de Metropolis-Hastings en supprimant les avertissements
+result <- suppressWarnings(metropolis_hastings(data_observed, niter, startval_m, startval_sigma2, proposalsd_m, proposalsd_sigma2))
+
+m_trace <- result$m
+sigma2_trace <- result$sigma2
+
+# Tracé de l'évolution de m
+plot(m_trace, type = "l", xlab = "Iterations", ylab = "m", main = "Evolution de m au fil des itérations")
+
+#Tracé de l'évolution de sigma^2
+plot(sigma2_trace, type = "l", xlab = "Iterations", ylab = "sigma^2", main = "Evolution de sigma^2 au fil des itérations")
+
+# Calcul des estimations par EMV
+m_EMV <- mean(data_observed)
+sigma2_EMV <- var(data_observed)
+
+# Création des histogrammes 
+hist(m_trace, main = "Histogramme de m", xlab = "m", ylab = "Fréquence")
+abline(v = m_EMV, col = "red", lty = 2)  
+legend("topleft", legend = "m_EMV", col = "red", lty = 2) 
+
+hist(sigma2_trace, main = "Histogramme de sigma^2", xlab = "sigma^2", ylab = "Fréquence")
+abline(v = sigma2_EMV, col = "red", lty = 2)
+legend("topright", legend = "sigma2_EMV", col = "red", lty = 2)
+
+# Tracer la loi du couple (m, sigma^2)
+plot(m_trace, sigma2_trace, xlab = "m", ylab = "sigma^2", main = "Loi du couple (m, sigma^2)")
+
+# Ajouter les estimations par EMV
+points(m_EMV, sigma2_EMV, col = "red", pch = 16)
+legend("topright", legend = c("EMV"), col = c("red"), pch = c(16))
+```
+
+On compare avec les valeurs obtenues avec la méthode du maximum de vraisemblance. Les histogrammes montrent bien qu'on tend vers ces valeurs ce qui est normal car ce sont elles qui sont utilisées dans le ratio d'acceptation.
+
+On étudie l'influence de la variance de la loi instrumentale sur l'autocorrélation de la chaine, le taux d'acceptation et la convergence de l'algorithme. 
+
+```{r}
+# Calcul de l'autocorrélation de la chaîne pour m
+acf_m <- acf(m_trace, plot = FALSE)
+plot(acf_m, main = "Autocorrélation de la chaîne pour m")
+
+# Calcul de l'autocorrélation de la chaîne pour sigma2
+acf_sigma2 <- acf(sigma2_trace, plot = FALSE)
+plot(acf_sigma2, main = "Autocorrélation de la chaîne pour sigma^2")
+```
+
+Si on augmente la variance de la loi instrumentale, l'autocorrélation tend plus vite vers 0 et on a une meilleure convergence mais ne faut pas l'augmenter trop non plus au risque de ne plus converger.
+
+Quand la variance de la loi instrumentale est trop faible, on peut rester coincé longtemps dans des pics de moyenne par exemple, donc il faut choisir une valeur assez élevée pour bien se diversifier.
+
+```{r}
+proposalsd_values <- c(0.1, 1, 5, 10, 100)
+
+acceptance_rate_results <- numeric(length(proposalsd_values))
+
+for (i in seq_along(proposalsd_values)) {
+  result <- suppressWarnings(metropolis_hastings(data_observed, niter, startval_m, startval_sigma2, proposalsd_m, proposalsd_values[i]))
+  # Calcul taux d'acceptation
+  acceptance_rate_results[i] <- sum(result$m != startval_m) / niter
+}
+
+# Création du graphique
+plot(proposalsd_values, acceptance_rate_results, type = "b", 
+     xlab = "Variance de la loi instrumentale", ylab = "Taux d'acceptation",
+     main = "Taux d'acceptation = f(variance loi instrumentale)")
+```
+
+Quand on augmente la variance de la loi instrumentale, on diminue le taux d'acceptation car on se diversifie davantage.
+
+3-
+
+```{r}
+# Paramètres de la loi a priori conjuguée gaussienne
+mu <- 2
+tau2 <- 0.5
+
+theta <- 1
+sigma2t <- 0.1
+
+# Fonction de densité a priori conjuguée gaussienne pour m et sigma2
+prior_conjugate <- function(m, sigma2, mu, tau2, theta, sigma2t) {
+  return(dnorm(m,mean = mu, sd = sqrt(tau2)) * dnorm(sigma2,mean = theta, sd = sigma2t))
+}
+
+
+# Algorithme Metropolis-Hastings pour loi a priori conjuguée
+metropolis_hastings_conjugate <- function(data, niter, startval_m, startval_sigma2, proposalsd_m, proposalsd_sigma2, mu, tau2, theta, sigma2t) {
+  x_m <- numeric(niter)
+  x_sigma2 <- numeric(niter)
+  x_m[1] <- startval_m
+  x_sigma2[1] <- startval_sigma2
+  
+  for (i in 2:niter) {
+    current_m <- x_m[i - 1]
+    current_sigma2 <- x_sigma2[i - 1]
+    
+    # Proposer un nouvel état
+    proposed_m <- rnorm(1, mean = current_m, sd = proposalsd_m)
+    proposed_sigma2 <- rnorm(1, mean = current_sigma2, sd = proposalsd_sigma2)
+    
+    # Calcul de la densité a posteriori pour les nouvelles propositions
+    posterior_proposed <- prior_conjugate(proposed_m, proposed_sigma2, mu, tau2, theta, sigma2t)
+    # Calcul de la densité a posteriori pour les valeurs observées de sigma2 et m
+    posterior_current <- prior_conjugate(current_m, current_sigma2, mu, tau2, theta, sigma2t)
+    
+    # Calcul du ratio d'acceptation
+    log_A <- posterior_proposed - posterior_current
+    
+    # Accepter ou rejeter le nouvel état
+    if (log(runif(1)) < log_A) {
+      x_m[i] <- proposed_m
+      x_sigma2[i] <- proposed_sigma2
+    } else {
+      x_m[i] <- current_m
+      x_sigma2[i] <- current_sigma2
+    }
+  }
+  
+  return(list(m = x_m, sigma2 = x_sigma2))
+}
+
+# Paramètres de l'algorithme Metropolis-Hastings
+niter <- 1000
+startval_m <- 5
+startval_sigma2 <- 1
+proposalsd_m <- 4
+proposalsd_sigma2 <- 0.02
+
+# Données observées
+set.seed(42)  
+n <- 20  
+m0 <- 2
+sigma20 <- 0.5  
+data_observed <- rnorm(n, mean = m0, sd = sqrt(sigma20))
+
+# Exécution de l'algorithme Metropolis-Hastings pour loi a priori conjuguée
+result_conjugate <- suppressWarnings(metropolis_hastings_conjugate(data_observed, niter, startval_m, startval_sigma2, proposalsd_m, proposalsd_sigma2, mu, tau2, theta = 1, sigma2t = 0.1))
+
+
+m_trace_conjugate <- result_conjugate$m
+sigma2_trace_conjugate <- result_conjugate$sigma2
+
+# Tracé de l'évolution de m et sigma2 pour loi a priori conjuguée
+par(mfrow = c(2, 1))
+plot(m_trace_conjugate, type = "l", xlab = "Iterations", ylab = "m", main = "Evolution de m avec loi a priori conjuguée")
+plot(sigma2_trace_conjugate, type = "l", xlab = "Iterations", ylab = "sigma^2", main = "Evolution de sigma^2 avec loi a priori conjuguée")
+
+# Calcul des estimations pour comparaison
+mean_posterior <- (sigma2 * mu + tau2 * m) / (sigma2 + tau2)
+var_posterior <- (sigma2 * tau2) / (sigma2 + tau2)
+
+# Tracé des histogrammes des échantillons de m et sigma2 pour loi a priori conjuguée
+par(mfrow = c(1, 2))
+hist(m_trace_conjugate, main = "Histogramme de m avec loi a priori conjuguée", xlab = "m", ylab = "Fréquence")
+abline(v = mean_posterior, col = "red", lty = 2)  
+legend("topleft", legend = "m_posterior", col = "red", lty = 2) 
+
+hist(sigma2_trace_conjugate, main = "Histogramme de sigma^2 avec loi a priori conjuguée", xlab = "sigma^2", ylab = "Fréquence")
+abline(v = var_posterior, col = "red", lty = 2)
+legend("topright", legend = "sigma2_posterior", col = "red", lty = 2)
+
+# Tracé de la loi du couple (m, sigma^2) pour loi a priori conjuguée
+plot(m_trace_conjugate, sigma2_trace_conjugate, xlab = "m", ylab = "sigma^2", main = "Loi du couple (m, sigma^2) avec loi a priori conjuguée")
+points(mean_posterior, var_posterior, col = "red", pch = 20)
+legend("topright", legend = c("Posterior"), col = c("red"), pch = c(16)) 
+```
+
+## Exercice 2
+
+1-
+
+```{r}
+m <- 10
+theta <- 0.1
+sigma2 <- 0.5
+n_points <- 100
+
+matern_cov <- function(x1, x2, theta) {
+  p <- length(x1)
+  result <- 1
+  
+  for (j in 1:p) {
+    term1 <- (1 + (sqrt(5) * abs(x1[j] - x2[j]) / theta[j]) - (5/3) * ((x1[j] - x2[j])^2 / theta[j]^2))
+    term2 <- exp(-sqrt(5) * abs(x1[j] - x2[j]) / theta[j])
+    result <- result * (term1 * term2)
+  }
+  
+  return(result)
+}
+
+
+x <- seq(0, 1, length.out = n_points)
+
+matrice_covariance <- matrix(0, n_points, n_points)
+
+for (i in 1:n_points) {
+  for (j in 1:n_points) {
+    matrice_covariance[i, j] <- matern_cov(x[i], x[j], theta)
+  }
+}
+
+matrice_covariance <- matrice_covariance * sigma2
+
+simulate_non_conditional <- function(mean_vector, covariance_matrix, n_simulations) {
+  L <- chol(covariance_matrix)
+  u <- matrix(rnorm(n_points * n_simulations), n_points, n_simulations)
+  simulated_values <- matrix(mean_vector, nrow = n_points, ncol = n_simulations) + t(L) %*% u
+  return(simulated_values)
+}
+```
+
+2-
+
+```{r}
+n_simulations <- 5
+mean_vector <- rep(m, n_points)
+covariance_matrix <- matrice_covariance
+
+simulated_values <- simulate_non_conditional(mean_vector, covariance_matrix, n_simulations)
+
+selected_trajectory <- simulated_values[, 1]
+selected_points <- sample(1:n_points, 5)
+selected_x <- x[selected_points]
+selected_values <- selected_trajectory[selected_points]
+selected_cov_matrix <- matrice_covariance[selected_points, selected_points]
+```
+
+3-
+
+```{r}
+library(DiceKriging)
+
+# Estimation des paramètres par maximum de vraisemblance
+theta_initial <- 0.1
+model_KU <- km(~1, design = data.frame(x = selected_x), response = selected_values, 
+               covtype = "matern5_2", lower = 0.099, upper = 0.101)
+model_KU # Pour voir les résultats de l'estimation des paramètres
+
+# Prédiction en utilisant le krigeage universel
+pred_KU <- predict(model_KU, newdata = data.frame(x = x), type = "UK", checkNames = FALSE)
+
+# Visualisation des résultats
+plot(x, selected_trajectory, type = "l", col = "blue", ylim = range(c(selected_trajectory, pred_KU$mean)), 
+     xlab = "x", ylab = "Values", main = "Universal Kriging Prediction")
+points(selected_x, selected_values, col = "red", pch = 16)  # Points sélectionnés
+lines(x, pred_KU$mean, col = "red")  # Prévision du krigeage universel
+```
+
+4 -
+
+```{r}
+# Fonction de log-vraisemblance
+log_likelihood <- function(sigma2, m, theta, Rxx, Y) {
+  
+  n <- length(Y)
+  
+  # Calcul de la log-vraisemblance
+  log_lik <- -(n/2) * log(2 * sigma2) - (1/2) * log(det(Rxx)) -
+    (1/(2 * sigma2)) * t(Y - rep(m, n)) %*% solve(Rxx) %*% (Y - rep(m, n))
+  
+  return(-log_lik)  # On retourne l'opposé pour maximiser
+}
+
+# Calcul de Rxx
+Rxx <- matrice_covariance[selected_points, selected_points]
+
+# Fonction de densité a priori pour m et sigma2
+prior <- function(m, sigma_squared) {
+  if (sigma_squared > 0 ) {
+    return(1 / sigma_squared)
+  } else {
+    return(0)
+  }
+}
+
+# Fonction de densité a posteriori pour m et sigma2
+posterior <- function(m, sigma_squared) {
+  if (sigma_squared > 0 ) {
+    likelihood <- exp(-log_likelihood(sigma_squared, m, theta, Rxx, selected_values))
+    return(likelihood * prior(m, sigma_squared))
+  } else {
+    return(0)
+  }
+}
+
+# Algorithme Metropolis-Hastings
+metropolis_hastings <- function(n_iterations) {
+  m_current <- rnorm(1)
+  sigma_squared_current <- runif(1, 0, 100)
+  
+  samples <- matrix(nrow = n_iterations, ncol = 2)
+  accepted <- 0
+  
+  for (i in 1:n_iterations) {
+    m_proposed <- m_current + rnorm(1)
+    sigma_squared_proposed <- sigma_squared_current + rnorm(1)
+    
+    acceptance_ratio <- min(1, posterior(m_proposed, sigma_squared_proposed) / posterior(m_current, sigma_squared_current))
+    if (runif(1) < acceptance_ratio) {
+      m_current <- m_proposed
+      sigma_squared_current <- sigma_squared_proposed
+      accepted <- accepted + 1
+    }
+    
+    samples[i,] <- c(m_current, sigma_squared_current)
+  }
+  
+  acceptance_rate <- accepted / n_iterations
+  cat("Taux d'acceptation :", acceptance_rate, "\n")
+  return(samples)
+}
+
+# Nombre d'itérations
+n_iterations <- 100000
+samples <- metropolis_hastings(n_iterations)
+
+# Calcul du nombre d'itérations pour les 10% dernières valeurs
+n_last_1_percent <- round(0.01 * n_iterations)
+
+
+# Tracé de m en fonction du nombre d'itérations pour les 10% dernières valeurs
+plot((n_iterations - n_last_1_percent + 1):n_iterations, samples[(n_iterations - n_last_1_percent + 1):n_iterations, 1], 
+     type = "l", xlab = "Iterations", ylab = "m", main = "Evolution de m (Dernières 1%)")
+abline(h = mean(samples[(n_iterations - n_last_1_percent + 1):n_iterations, 1]), col = "red")  # Ajoute la ligne moyenne en rouge
+
+# Tracé de sigma^2 en fonction du nombre d'itérations pour les 10% dernières valeurs
+plot((n_iterations - n_last_1_percent + 1):n_iterations, samples[(n_iterations - n_last_1_percent + 1):n_iterations, 2], 
+     type = "l", xlab = "Iterations", ylab = "sigma^2", main = "Evolution de sigma^2 (Dernières 1%)")
+abline(h = mean(samples[(n_iterations - n_last_1_percent + 1):n_iterations, 2]), col = "red")  # Ajoute la ligne moyenne en rouge
+
+plot(samples[(n_iterations - n_last_1_percent + 1):n_iterations, 1], 
+    samples[(n_iterations - n_last_1_percent + 1):n_iterations, 2], 
+    xlab = "m", ylab = "sigma^2", main = "Évolution de m et sigma^2 (Derniers 1%)",
+    col = rgb(0, 0, 0, alpha = 0.3), pch = 20)
+```
+
+Après estimation de la loi a posteriori du couple $(m,\sigma^2)$, on observe qu'on a une bonne convergence pour $m$ et un peu moins bonne pour $\sigma^2$ ce qui est normal.
+
+Le krigeage bayésien prend en compte plus d'incertitudes que le krigeage universel donc il est plus étalé.
+
+5 -
+
+D'abord, on rappelle que :
+
+$m_{SK}(x|m,\sigma^2,\theta)=m+r_{x,\mathbb{X}}R^{-1}_{\mathbb{X},\mathbb{X}}(Y_{\mathbb{X}}-m\mathbb{1}_N)$
+
+$k_{SK}(x,\tilde{x}|m,\sigma^2,\theta)=\sigma^2(1-r_{x,\mathbb{X}}R^{-1}_{\mathbb{X},\mathbb{X}}r_{\mathbb{X},\tilde{x}})$
+
+On a alors :
+
+$\mathbb{E}(Y(x)|Y_{\mathbb{X}})=\displaystyle\frac{1}{N}\displaystyle\sum_{j=1}^N m_{SK}(x|(m,\sigma^2,\theta)_j)$
+
+$\mathbb{V}(Y(x)|Y_{\mathbb{X}})=\displaystyle\frac{1}{N}\displaystyle\sum_{j=1}^N \sigma^2_{SK}(x|(m,\sigma^2,\theta)_j) + \displaystyle\frac{1}{N}\displaystyle\sum_{j=1}^N \bigg(m_{SK}(x|(m,\sigma^2,\theta)_j)-m_{BK}(x)\bigg)^2$
+
+6 -
+
+## Exercice 3
+
+```{r}
+m <- 10
+theta <- 0.1
+sigma2 <- 10
+n_points <- 100
+
+matern_cov <- function(x1, x2, theta) {
+  p <- length(x1)
+  result <- 1
+  
+  for (j in 1:p) {
+    term1 <- (1 + (sqrt(5) * abs(x1[j] - x2[j]) / theta[j]) - (5/3) * ((x1[j] - x2[j])^2 / theta[j]^2))
+    term2 <- exp(-sqrt(5) * abs(x1[j] - x2[j]) / theta[j])
+    result <- result * (term1 * term2)
+  }
+  
+  return(result)
+}
+
+
+x <- seq(0, 1, length.out = n_points)
+
+matrice_covariance <- matrix(0, n_points, n_points)
+
+for (i in 1:n_points) {
+  for (j in 1:n_points) {
+    matrice_covariance[i, j] <- matern_cov(x[i], x[j], theta)
+  }
+}
+
+matrice_covariance <- matrice_covariance * sigma2
+
+simulate_non_conditional <- function(mean_vector, covariance_matrix, n_simulations) {
+  L <- chol(covariance_matrix)
+  u <- matrix(rnorm(n_points * n_simulations), n_points, n_simulations)
+  simulated_values <- matrix(mean_vector, nrow = n_points, ncol = n_simulations) + t(L) %*% u
+  return(simulated_values)
+}
+
+n_simulations <- 5
+mean_vector <- rep(m, n_points)
+covariance_matrix <- matrice_covariance
+
+simulated_values <- simulate_non_conditional(mean_vector, covariance_matrix, n_simulations)
+
+matplot(x, simulated_values, type = "l", col = rainbow(n_simulations), xlab = "x", ylab = "Simulated Values",
+main = sprintf("Non Conditional simulations \nSigma: %.2f, Mean: %.2f, Theta: %.2f", sigma2, m, theta))
+
+
+
+selected_trajectory <- simulated_values[, 1]
+selected_points <- sample(1:n_points, 5)
+selected_x <- x[selected_points]
+selected_values <- selected_trajectory[selected_points]
+selected_cov_matrix <- matrice_covariance[selected_points, selected_points]
+
+library(DiceKriging)
+
+# Estimation des paramètres par maximum de vraisemblance
+theta_initial <- 0.1
+model_KU <- km(~1, design = data.frame(x = selected_x), response = selected_values, 
+               covtype = "matern5_2", lower = 0.099, upper = 0.101)
+model_KU # Pour voir les résultats de l'estimation des paramètres
+
+# Prédiction en utilisant le krigeage universel
+pred_KU <- predict(model_KU, newdata = data.frame(x = x), type = "UK", checkNames = FALSE)
+
+# Visualisation des résultats
+plot(x, selected_trajectory, type = "l", col = "blue", ylim = range(c(selected_trajectory, pred_KU$mean)), 
+     xlab = "x", ylab = "Values", main = "Universal Kriging Prediction")
+points(selected_x, selected_values, col = "red", pch = 16)  # Points sélectionnés
+lines(x, pred_KU$mean, col = "red")  # Prévision du krigeage universel
+
+
+# Fonction de log-vraisemblance
+log_likelihood <- function(sigma2, m, theta, Rxx, Y) {
+  
+  n <- length(Y)
+  
+  # Calcul de la log-vraisemblance
+  log_lik <- -(n/2) * log(2 * sigma2) - (1/2) * log(det(Rxx)) -
+    (1/(2 * sigma2)) * t(Y - rep(m, n)) %*% solve(Rxx) %*% (Y - rep(m, n))
+  
+  return(-log_lik)  # On retourne l'opposé pour maximiser
+}
+
+# Calcul de Rxx
+Rxx <- matrice_covariance[selected_points, selected_points]
+
+# Fonction de densité a priori pour m et sigma2
+prior <- function(m, sigma_squared,theta) {
+  if (sigma_squared > 0 && sigma_squared < 10 && theta>0 && theta<10 && m< 10 && m>0) {
+    return(1 / (sigma_squared**(1/2)))
+  } else {
+    return(0)
+  }
+}
+
+# Fonction de densité a posteriori pour m et sigma2
+posterior <- function(m, sigma_squared,theta) {
+  if (sigma_squared > 0 ) {
+    likelihood <- exp(-log_likelihood(sigma_squared, m, theta, Rxx, selected_values))
+    return(likelihood * prior(m, sigma_squared,theta))
+  } else {
+    return(0)
+  }
+}
+
+# Algorithme Metropolis-Hastings
+metropolis_hastings <- function(n_iterations) {
+  m_current <- rnorm(1)
+  sigma_squared_current <- runif(1, 0, 100)
+  theta_current <- runif(1, 0, 1)
+  
+  samples <- matrix(nrow = n_iterations, ncol = 3)
+  accepted <- 0
+  
+  for (i in 1:n_iterations) {
+    m_proposed <- m_current + rnorm(1)
+    sigma_squared_proposed <- sigma_squared_current + rnorm(1)
+    theta_proposed <- theta_current + rnorm(1)
+    
+    
+    acceptance_ratio <- min(1, posterior(m_proposed, sigma_squared_proposed,theta_proposed) / posterior(m_current, sigma_squared_current,theta_current))
+    if (runif(1) < acceptance_ratio) {
+      m_current <- m_proposed
+      sigma_squared_current <- sigma_squared_proposed
+      theta_current <- theta_proposed
+      accepted <- accepted + 1
+    }
+    
+    samples[i,] <- c(m_current, sigma_squared_current,theta_current)
+  }
+  
+  acceptance_rate <- accepted / n_iterations
+  cat("Taux d'acceptation :", acceptance_rate, "\n")
+  return(samples)
+}
+
+
+# Nombre d'itérations
+n_iterations <- 100000
+samples <- metropolis_hastings(n_iterations)
+# Sélectionner les 100 dernières lignes de samples
+last_100_samples <- tail(samples, 100)
+
+# Graphe m et sigma2
+plot(last_100_samples[, 1], last_100_samples[, 2], xlab = "m", ylab = "sigma^2", 
+     main = "Graphe de m et sigma^2 (100 derniers)", col = "blue", pch = 20)
+
+# Graphe theta et m
+plot(last_100_samples[, 3], last_100_samples[, 1], xlab = "theta", ylab = "m", 
+     main = "Graphe de theta et m (100 derniers)", col = "green", pch = 20)
+
+# Graphe theta et sigma2
+plot(last_100_samples[, 3], last_100_samples[, 2], xlab = "theta", ylab = "sigma^2", 
+     main = "Graphe de theta et sigma^2 (100 derniers)", col = "red", pch = 20)
+```
+
+## Exercice 4
+
+Krigeage universel : on se fixe par exemple $n=20$ observations.
+
+```{r}
+library(DiceKriging)
+library(mlrMBO)
+
+six_hump_camel <- function(x) {
+  x1 <- x[,1]
+  x2 <- x[,2]
+  term1 <- (4 - 2.1 * x1^2 + (x1^4)/3) * x1^2
+  term2 <- x1 * x2
+  term3 <- (-4 + 4 * x2^2) * x2^2
+  return(term1 + term2 + term3)
+}
+
+param <- makeNumericParam(id = "x1", lower = -2, upper = 2)
+param2 <- makeNumericParam(id = "x2", lower = -1, upper = 1)
+space <- makeParamSet(param, param2)
+
+init_design <- generateDesign(n = 20, par.set = space)
+
+init_responses <- six_hump_camel(as.matrix(init_design))
+
+kriging_model <- km(design = init_design, response = init_responses)
+
+print(kriging_model)
+```
+
+```{r}
+library(plotly)
+# Affichage fonction et krigeage
+
+grid <- expand.grid(x1 = seq(-2, 2, length.out = 100), x2 = seq(-1, 1, length.out = 100))
+grid_responses <- six_hump_camel(as.matrix(grid))
+
+# Prédiction des valeurs de la fonction sur la grille à l'aide du modèle de krigeage
+kriging_predictions <- predict(kriging_model, newdata = as.data.frame(grid), type = "UK")
+
+# Création d'un data frame pour la visualisation
+df <- data.frame(grid, Response = grid_responses, Kriging_Prediction = kriging_predictions$mean)
+
+# Visualisation de la fonction Six-Hump Camel et de son krigeage en 3D avec des nuages de points
+plot_ly(df, x = ~x1, y = ~x2, z = ~Response, type = "scatter3d", mode = "markers", name = "Function", marker = list(size = 2)) %>%
+  add_trace(x = ~x1, y = ~x2, z = ~Kriging_Prediction, mode = "markers", name = "Kriging Prediction", marker = list(size = 2)) %>%
+  layout(title = "Six-Hump Camel Function and Kriging Prediction",
+         scene = list(xaxis = list(title = "X1"),
+                      yaxis = list(title = "X2"),
+                      zaxis = list(title = "Response")))
+```
+
+Krigeage bayésien :
