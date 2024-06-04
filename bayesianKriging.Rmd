@@ -1,9 +1,9 @@
 ---
-title: "BE2_ProcessusGaussiens_MESSINA_MUNOZ"
+title: "BE2_ProcessusGaussiens_MESSINA"
 output: html_notebook
 ---
 
-MESSINA Valentin et MUNOZ Eloi
+MESSINA Valentin
 
 Dans ce TP, on se donne a priori $\theta = \theta_{ref} =0.15$ et $\sigma^2 = \sigma^2_{ref} = 1$ et on cherche à estimer $\theta$ à l'aide trois différentes méthodes : d'abord on va calculer un variogramme empirique et chercher la valeur de $\theta$ qui donne un variogramme théorique le plus proche possible. Ensuite, on va estimer $\theta$ par validation croisée avec une méthode LOO (Leave One Out) et enfin on l'estimera par maximum de vraisemblance.
 
