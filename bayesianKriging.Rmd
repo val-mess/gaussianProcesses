@@ -1,5 +1,5 @@
 ---
-title: "BE_KrigeageBayesien_MESSINA_MUNOZ"
+title: "BE_KrigeageBayesien_MESSINA"
 output:
   html_document:
     df_print: paged
