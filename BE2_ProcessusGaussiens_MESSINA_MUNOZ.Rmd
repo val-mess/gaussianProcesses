@@ -1,0 +1,236 @@
+---
+title: "BE2_ProcessusGaussiens_MESSINA_MUNOZ"
+output: html_notebook
+---
+
+MESSINA Valentin et MUNOZ Eloi
+
+Dans ce TP, on se donne a priori $\theta = \theta_{ref} =0.15$ et $\sigma^2 = \sigma^2_{ref} = 1$ et on cherche à estimer $\theta$ à l'aide trois différentes méthodes : d'abord on va calculer un variogramme empirique et chercher la valeur de $\theta$ qui donne un variogramme théorique le plus proche possible. Ensuite, on va estimer $\theta$ par validation croisée avec une méthode LOO (Leave One Out) et enfin on l'estimera par maximum de vraisemblance.
+
+Pour commencer, on réalise une simulation non conditionnelle.
+
+**Simulation non conditionnelle**
+
+```{r}
+m <- 0
+theta <- 0.15
+sigma2 <- 1
+n_points <- 100
+x <- seq(0, 0.4, length.out = n_points)
+
+matern_cov <- function(x1, x2, theta) {
+  p <- length(x1)
+  result <- 1
+  
+  for (j in 1:p) {
+    term1 <- (1 + (sqrt(5) * abs(x1[j] - x2[j]) / theta[j]) - (5/3) * ((x1[j] - x2[j])^2 / theta[j]^2))
+    term2 <- exp(-sqrt(5) * abs(x1[j] - x2[j]) / theta[j])
+    result <- result * (term1 * term2)
+  }
+  
+  return(result)
+}
+
+x <- seq(0, 1, length.out = n_points)
+
+matrice_covariance <- matrix(0, n_points, n_points)
+
+for (i in 1:n_points) {
+  for (j in 1:n_points) {
+    matrice_covariance[i, j] <- matern_cov(x[i], x[j], theta)
+  }
+}
+
+matrice_covariance <- matrice_covariance * sigma2
+
+simulate_non_conditional <- function(mean_vector, covariance_matrix, n_simulations) {
+  L <- chol(covariance_matrix)
+  u <- matrix(rnorm(n_points * n_simulations), n_points, n_simulations)
+  simulated_values <- matrix(mean_vector, nrow = n_points, ncol = n_simulations) + t(L) %*% u
+  return(simulated_values)
+}
+
+n_simulations <- 1
+mean_vector <- rep(m, n_points)
+covariance_matrix <- matrice_covariance
+
+simulated_values <- simulate_non_conditional(mean_vector, covariance_matrix, n_simulations)
+
+matplot(x, simulated_values, type = "l", col = rainbow(n_simulations), xlab = "x", ylab = "y_n",
+        main = sprintf("Simulation non conditionnelle \nSigma2: %.2f, Mean: %.2f, Theta : %.2f", sigma2, m, theta))
+```
+
+-   **Méthode 1 :** variogramme empirique
+
+```{r}
+selected_values <- simulated_values[ seq(1, n_points, by = 2),]
+selected_x <- x[ seq(1, n_points, by = 2)]
+
+abs_diff_matrix <- matrix(0, nrow = length(selected_x), ncol = length(selected_x))
+
+for (i in 1:length(selected_x)) {
+  for (j in 1:length(selected_x)) {
+    abs_diff_matrix[i, j] <- abs(selected_x[i] - selected_x[j])
+  }
+}
+
+squared_diff_matrix <- matrix(0, nrow = length(selected_values), ncol = length(selected_values))
+
+for (i in 1:length(selected_values)) {
+  for (j in 1:length(selected_values)) {
+    squared_diff_matrix[i, j] <- 0.5 * (selected_values[i] - selected_values[j])^2
+  }
+}
+
+unique_values <- unique(as.vector(round(abs_diff_matrix, 8)))
+
+sig_hat2 <- numeric()
+
+for (value in unique_values) {
+  indices <- which(round(abs_diff_matrix, 8) == value, arr.ind = TRUE)
+  filtered_indices <- indices[indices[, 1] < indices[, 2], ]
+  sum_squared_diff <- sum(squared_diff_matrix[filtered_indices])
+  average_value <- sum_squared_diff / as.numeric(dim(filtered_indices)[1])
+  sig_hat2 <- c(sig_hat2, average_value)
+}
+
+num_points <- length(unique_values)
+num_to_plot <- round(0.4 * num_points) 
+
+filtered_values <- unique_values[1:num_to_plot]
+filtered_sig_hat2 <- sig_hat2[1:num_to_plot]
+
+plot(filtered_values, filtered_sig_hat2, pch = 16, col = "blue", 
+     xlab = "h_empirical", ylab = "sig_hat2", 
+     main = "Variogramme empirique vs théorique")
+
+#valeurs de theta pour Variogramme
+theta_values <- seq(0, 2, length.out = 20) 
+
+matern_cov_values <- matrix(0, nrow = length(filtered_values), ncol = length(theta_values))
+
+for (i in 1:length(theta_values)) {
+  for (j in 1:length(filtered_values)) {
+    matern_cov_values[j, i] <- sigma2*(1- matern_cov(0, filtered_values[j], theta_values[i]))
+  }
+}
+
+colors <- rainbow(length(theta_values)) # Couleurs pour chaque courbe
+for (i in 1:length(theta_values)) {
+  lines(filtered_values, matern_cov_values[,i], col = colors[i], type = "l", lwd = 2,
+        xlab = "Lag Distance", ylab = "Matern Cov", main = "Matern Cov vs Lag Distance")
+}
+
+points(filtered_values, filtered_sig_hat2, pch = 16, col = "blue")
+
+legend_values <- paste("Theta =", round(theta_values, 2))
+legend_colors <- colors
+legend("topright", legend = legend_values, col = legend_colors, lty = 1, lwd = 2, bg = "white", inset = 0, cex=0.4)
+```
+
+On voit que la méthode fonctionne bien car le $\theta$ qui donne le variogramme théorique le plus proche du variogramme empirique est $\theta=0.11$ qui est la valeur la plus proche de $\theta_{ref}$. On pourrait raffiner les valeurs des paramètres pour trouver le plus optimal mais on voit déjà que la méthode fonctionne.
+
+-   **Méthode 2 :** estimation par validation croisée LOO (Leave One Out)
+
+```{r}
+simple_kriging_predictor <- function(x0, x, y, cov_matrix, mean_vector,theta) {
+  n <- length(x)
+  k <- sapply(x, function(xi) matern_cov(x0, xi, theta))
+  k0 <- sapply(x0, function(xi) matern_cov(xi, xi, theta))
+  weights <- solve(cov_matrix, k)
+  
+  predictor <- mean_vector + sum(weights * (y - mean_vector))
+  variance <- k0 - sum(weights * k)
+  
+  return(list(predictor = predictor, variance = variance))
+}
+
+# Définir les valeurs de theta à tester
+theta_values <- seq(0.1, 2, by = 0.1)
+
+total_errors <- numeric(length(theta_values))
+
+for (i in seq_along(theta_values)) {
+  thet <- theta_values[i]
+  
+  total_error <- 0
+  
+  for (j in 1:n_points) {
+    selected_points <- seq_len(n_points)[-j]  # Sélectionner tous les points sauf le j-ème
+    selected_values <- simulated_values[-j]   # Sélectionner toutes les valeurs sauf la j-ème
+    
+    prediction <- simple_kriging_predictor(x[j], x[selected_points], selected_values, matrice_covariance[selected_points, selected_points], mean_vector[selected_points],thet)
+    
+    total_error <- total_error + abs(simulated_values[j] - prediction$predictor[1])
+  }
+  
+  total_errors[i] <- total_error
+}
+
+plot(theta_values, total_errors, type = "l", xlab = "Theta Values", ylab = "Total Error",
+     main = "Erreur en fonction de theta, methode Leave One Out")
+```
+
+On voit que le graphe de l'erreur en fonction de $\theta$ admet bien un minimum proche de $\theta_{ref}$ donc on valide la méthode.
+
+-   **Méthode 3 :** Maximum de vraisemblance
+
+```{r}
+n <- n_points
+y_n <- simulated_values
+initial_theta <- 0.001
+
+matern_cov <- function(x1, x2, theta) {
+  p <- length(x1)
+  result <- 1
+  
+  for (j in 1:p) {
+    term1 <- (1 + (sqrt(5) * abs(x1[j] - x2[j]) / theta[j]) - (5/3) * ((x1[j] - x2[j])^2 / theta[j]^2))
+    term2 <- exp(-sqrt(5) * abs(x1[j] - x2[j]) / theta[j])
+    result <- result * (term1 * term2)
+  }
+  
+  return(result)
+}
+
+matrice_cov <- function(theta){
+  matrice_covariance <- matrix(0, n_points, n_points)
+
+  for (i in 1:n_points) {
+    for (j in 1:n_points) {
+    matrice_covariance[i, j] <- matern_cov(x[i], x[j], theta)
+    }
+  }
+   matrice_covariance <- matrice_covariance * 
+   return(matrice_covariance)
+}
+
+# Fonction log-vraisemblance
+log_likelihood <- function(theta, n, y_n) {
+  R_theta <- matrice_cov(theta)
+  one_v <- numeric(n) + 1
+m_hat_MEV <- solve(t(one_v) %*% solve(R_theta) %*% one_v) %*% t(one_v) %*% solve(R_theta) %*% y_n
+sigma2_hat_MEV <- (1/n) * t(y_n - m_hat_MEV * one_v) %*% solve(R_theta) %*% (y_n - m_hat_MEV * one_v)
+  
+  # Calculer la log-vraisemblance
+  log_likelihood_value <- (n/2) * log(2 * pi * sigma2_hat_MEV) + (1/2) * log(det(R_theta)) + (n/2)
+  return(-log_likelihood_value)  # La fonction d'optimisation minimise, donc on utilise -log_likelihood
+}
+
+# Trouver le theta optimal
+result <- optim(par = initial_theta, fn = log_likelihood, n = n, y_n = y_n)
+
+theta_optimal_EMV <- result$par
+# Afficher la valeur de theta optimal
+cat("Theta optimal:", theta_optimal_EMV, "\n")
+
+ini_theta <- rep(0, length(initial_theta))  # Remplacez par une valeur initiale appropriée
+
+# Afficher la valeur pour theta variant entre 0 et 1
+theta_values <- seq(initial_theta, 1, length.out = 100)
+log_likelihood_values <- sapply(theta_values, function(theta_val) -log_likelihood(theta_val, n, y_n))
+plot(theta_values, log_likelihood_values, type = "l", col = "blue", xlab = "Theta", ylab = "-l(theta)", main ="-l(theta) à minimiser")
+
+```
+
+Ici, on voit que la méthode fonctionne car le graphe de l'opposé de la vraisemblance restreinte admet bien un minimum proche de $\theta_{ref}$ mais le minimum n'est pas évident et la fonction optim de R donne une valeur erronée.
